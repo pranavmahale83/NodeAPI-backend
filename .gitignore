@@ -5,7 +5,6 @@ node_modules/
 .env
 *.pem
 *.key
-*.json
 
 # Firebase / GCP
 firebase-service-account.json
