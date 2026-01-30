@@ -3,15 +3,19 @@ const path = require("path");
 const puppeteer = require("puppeteer");
 
 async function generateQuotationPDF(htmlContent, quotationId) {
-  // Ensure pdf directory exists
   const pdfDir = path.join(process.cwd(), "pdf");
   if (!fs.existsSync(pdfDir)) {
     fs.mkdirSync(pdfDir, { recursive: true });
   }
 
+  // ✅ Explicit Chrome path used by Render
+  const chromePath =
+    process.env.PUPPETEER_EXECUTABLE_PATH ||
+    "/opt/render/.cache/puppeteer/chrome/linux-144.0.7559.96/chrome-linux64/chrome";
+
   const browser = await puppeteer.launch({
     headless: "new",
-    executablePath: puppeteer.executablePath(), // ✅ REQUIRED ON RENDER
+    executablePath: chromePath,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -23,10 +27,7 @@ async function generateQuotationPDF(htmlContent, quotationId) {
   });
 
   const page = await browser.newPage();
-
-  await page.setContent(htmlContent, {
-    waitUntil: "networkidle0",
-  });
+  await page.setContent(htmlContent, { waitUntil: "networkidle0" });
 
   const filePath = path.join(pdfDir, `quotation_${quotationId}.pdf`);
 
