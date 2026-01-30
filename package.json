@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "npx puppeteer browsers install chrome"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +22,6 @@
     "mysql2": "^3.16.2",
     "nodemailer": "^7.0.12",
     "number-to-words": "^1.2.4",
-    "puppeteer": "^24.36.0"
+    "puppeteer": "^24.36.1"
   }
 }
