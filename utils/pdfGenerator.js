@@ -8,21 +8,13 @@ async function generateQuotationPDF(htmlContent, quotationId) {
     fs.mkdirSync(pdfDir, { recursive: true });
   }
 
-  // ✅ Explicit Chrome path used by Render
-  const chromePath =
-    process.env.PUPPETEER_EXECUTABLE_PATH ||
-    "/opt/render/.cache/puppeteer/chrome/linux-144.0.7559.96/chrome-linux64/chrome";
-
   const browser = await puppeteer.launch({
     headless: "new",
-    executablePath: chromePath,
+    executablePath: puppeteer.executablePath(), // ✅ DO NOT hardcode
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
-      "--disable-gpu",
-      "--no-zygote",
-      "--single-process",
     ],
   });
 
