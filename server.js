@@ -16,9 +16,14 @@ app.use(express.json());
 app.use("/api/quotations", quotationRoutes);
 
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT} and it's ohk`);
+app.get("/check", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    message: "Server is running",
+    timestamp: new Date().toISOString()
+  });
 });
+
 
 
 /* ------------------ Server Start ------------------ */
