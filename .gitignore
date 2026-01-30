@@ -1,0 +1,16 @@
+# Node
+node_modules/
+
+# Environment & secrets
+.env
+*.pem
+*.key
+*.json
+
+# Firebase / GCP
+firebase-service-account.json
+src/services/serviceAccountKey.json
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
