@@ -1,6 +1,4 @@
-require("dotenv").config({
-  path: require("path").resolve(__dirname, "../.env")
-});
+require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
@@ -16,6 +14,11 @@ app.use(express.json());
 
 /* ------------------ Routes ------------------ */
 app.use("/api/quotations", quotationRoutes);
+
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 
 
 /* ------------------ Server Start ------------------ */
