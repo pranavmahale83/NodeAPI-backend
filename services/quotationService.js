@@ -467,8 +467,8 @@ async function generateQuotationPDFOnly(quotationId) {
     [quotationId]
   );
 
-  console.log(quotation);
-  console.log(quotationId);
+  // console.log(quotation);
+  // console.log(quotationId);
 
 
   if (!quotation || !quotation.body) {
@@ -562,8 +562,10 @@ async function sendQuotationToClientFirebase(firebaseQuotationId, salesManagerId
   try {
     await conn.beginTransaction();
 
+    console.log("📤 START SEND FLOW →", firebaseQuotationId);
+
     /* ------------------------------------------------
-       1️⃣ Fetch AI quotation from SQL (Firebase-based)
+       1️⃣ Fetch AI quotation from SQL
     ------------------------------------------------- */
     const [[aiQuotation]] = await conn.query(
       `
@@ -600,7 +602,7 @@ async function sendQuotationToClientFirebase(firebaseQuotationId, salesManagerId
     }
 
     /* ------------------------------------------------
-       3️⃣ Fetch client email from Firebase (source of truth)
+       3️⃣ Fetch client email from Firebase
     ------------------------------------------------- */
     const clientSnap = await firestore
       .collection("clients")
@@ -618,34 +620,56 @@ async function sendQuotationToClientFirebase(firebaseQuotationId, salesManagerId
       throw new Error("Client email missing in Firebase");
     }
 
+    console.log("📧 CLIENT EMAIL →", clientEmail);
+
     /* ------------------------------------------------
-       4️⃣ Generate PDF from AI markdown
+       4️⃣ Generate PDF (RENDER SAFE PATH)
     ------------------------------------------------- */
     const html = markdownToHtml(aiQuotation.body);
-    const pdfPath = await generateQuotationPDF(html, firebaseQuotationId);
+
+    // 🔥 IMPORTANT → Render writable path
+    const pdfPath = path.join("/tmp", `quotation_${firebaseQuotationId}.pdf`);
+
+    await generateQuotationPDF(html, pdfPath);
+
+    console.log("📄 PDF GENERATED →", pdfPath);
+
+    if (!fs.existsSync(pdfPath)) {
+      throw new Error("PDF not found at: " + pdfPath);
+    }
 
     /* ------------------------------------------------
-       5️⃣ Send quotation email
+       5️⃣ Send quotation email (HARDENED)
     ------------------------------------------------- */
-    await sendQuotationEmail({
-      to: clientEmail,
-      subject: aiQuotation.subject,
-      text: "Please find attached your quotation.",
-      attachmentPath: pdfPath
-    });
+    console.log("📨 SENDING EMAIL...");
+
+    try {
+      await sendQuotationEmail({
+        to: clientEmail,
+        subject: aiQuotation.subject,
+        text: "Please find attached your quotation.",
+        attachmentPath: pdfPath
+      });
+
+      console.log("✅ EMAIL SENT SUCCESS");
+
+    } catch (mailErr) {
+      console.error("❌ EMAIL FAILED:", mailErr.message);
+      throw new Error("SMTP Failed: " + mailErr.message);
+    }
 
     /* ------------------------------------------------
-       6️⃣ Audit log (SQL only)
+       6️⃣ Audit log (optional)
     ------------------------------------------------- */
-    // await conn.query(
-    //   `
-    //   INSERT INTO quotation_audit
-    //     (firebase_quotation_id, action, performed_by)
-    //   VALUES
-    //     (?, 'SENT_TO_CLIENT', ?)
-    //   `,
-    //   [firebaseQuotationId, salesManagerId]
-    // );
+    await conn.query(
+      `
+      INSERT INTO quotation_audit
+        (firebase_quotation_id, action, performed_by)
+      VALUES
+        (?, 'SENT_TO_CLIENT', ?)
+      `,
+      [firebaseQuotationId, salesManagerId]
+    );
 
     await conn.commit();
 
@@ -657,7 +681,11 @@ async function sendQuotationToClientFirebase(firebaseQuotationId, salesManagerId
 
   } catch (error) {
     await conn.rollback();
+
+    console.error("🔥 SEND FLOW ERROR:", error.message);
+
     throw error;
+
   } finally {
     conn.release();
   }
