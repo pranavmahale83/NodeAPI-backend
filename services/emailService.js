@@ -51,13 +51,20 @@ const fs = require("fs");
 
 const transporter = nodemailer.createTransport({
   host: "smtp-relay.brevo.com",
-  port: 587,
-  secure: false,
+  port: 465,
+  secure: true,          // IMPORTANT
   auth: {
     user: process.env.BREVO_USER,
     pass: process.env.BREVO_PASS
-  }
+  },
+  tls: {
+    rejectUnauthorized: false
+  },
+  connectionTimeout: 20000,
+  greetingTimeout: 15000,
+  socketTimeout: 20000
 });
+
 
 async function sendQuotationEmail({ to, subject, text, attachmentPath }) {
 
