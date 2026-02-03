@@ -1,9 +1,6 @@
 const db = require("../config/db");
-const admin = require("firebase-admin");
-const firestore = admin.firestore();
-
-const fs = require("fs");
 const path = require("path");
+const fs = require("fs");
 const { calculatePricing } = require("./priceService");
 const { generateQuotationAI } = require("./aiquotationService");
 const { markdownToHtml } = require("../utils/markdownToHtml");
@@ -558,75 +555,82 @@ async function sendQuotationToClient(quotationId, salesManagerId) {
   }
 }
 
-
+const admin = require("firebase-admin");
+const firestore = admin.firestore();
 
 async function sendQuotationToClientFirebase(firebaseQuotationId, salesManagerId) {
-
-  console.log("📤 START SEND FLOW →", firebaseQuotationId);
-
-  // =============== 1. READ AI QUOTATION (SQL) =================
-  const [[aiQuotation]] = await db.query(
-    `
-    SELECT
-      firebase_quotation_id,
-      subject,
-      body
-    FROM firebase_ai_quotations
-    WHERE firebase_quotation_id = ?
-    `,
-    [firebaseQuotationId]
-  );
-
-  if (!aiQuotation) {
-    throw new Error("AI quotation not found in SQL");
-  }
-
-  // =============== 2. FIREBASE DATA =================
-  const quotationSnap = await firestore
-    .collection("quotations")
-    .doc(firebaseQuotationId)
-    .get();
-
-  if (!quotationSnap.exists) {
-    throw new Error("Quotation not found in Firebase");
-  }
-
-  const quotationData = quotationSnap.data();
-
-  if (!quotationData.clientId) {
-    throw new Error("clientId missing in Firebase quotation");
-  }
-
-  // =============== 3. CLIENT EMAIL =================
-  const clientSnap = await firestore
-    .collection("clients")
-    .doc(quotationData.clientId)
-    .get();
-
-  if (!clientSnap.exists) {
-    throw new Error("Client not found in Firebase");
-  }
-
-  const clientData = clientSnap.data();
-
-  const clientEmail =
-    clientData.emailAddress ||
-    clientData.email ||
-    clientData.contactEmail;
-
-  if (!clientEmail) {
-    throw new Error("Client email missing in Firebase");
-  }
-
-  console.log("📧 CLIENT EMAIL →", clientEmail);
-
-  // =============== 4. PDF GENERATION =================
-  let pdfPath;
+  const conn = await db.getConnection();
 
   try {
+    await conn.beginTransaction();
+
+    console.log("📤 START SEND FLOW →", firebaseQuotationId);
+
+    /* ------------------------------------------------
+       1️⃣ Fetch AI quotation from SQL
+    ------------------------------------------------- */
+    const [[aiQuotation]] = await conn.query(
+      `
+      SELECT
+        firebase_quotation_id,
+        subject,
+        body
+      FROM firebase_ai_quotations
+      WHERE firebase_quotation_id = ?
+      `,
+      [firebaseQuotationId]
+    );
+
+    if (!aiQuotation) {
+      throw new Error("AI quotation not found in SQL");
+    }
+
+    /* ------------------------------------------------
+       2️⃣ Fetch quotation from Firebase
+    ------------------------------------------------- */
+    const quotationSnap = await firestore
+      .collection("quotations")
+      .doc(firebaseQuotationId)
+      .get();
+
+    if (!quotationSnap.exists) {
+      throw new Error("Quotation not found in Firebase");
+    }
+
+    const quotationData = quotationSnap.data();
+
+    if (!quotationData.clientId) {
+      throw new Error("clientId missing in Firebase quotation");
+    }
+
+    /* ------------------------------------------------
+       3️⃣ Fetch client email from Firebase
+    ------------------------------------------------- */
+    const clientSnap = await firestore
+      .collection("clients")
+      .doc(quotationData.clientId)
+      .get();
+
+    if (!clientSnap.exists) {
+      throw new Error("Client not found in Firebase");
+    }
+
+    const clientData = clientSnap.data();
+    const clientEmail = clientData.emailAddress;
+
+    if (!clientEmail) {
+      throw new Error("Client email missing in Firebase");
+    }
+
+    console.log("📧 CLIENT EMAIL →", clientEmail);
+
+    /* ------------------------------------------------
+       4️⃣ Generate PDF (RENDER SAFE PATH)
+    ------------------------------------------------- */
     const html = markdownToHtml(aiQuotation.body);
 
-    pdfPath = await generateQuotationPDF(html, firebaseQuotationId);
+    // 🔥 IMPORTANT → Render writable path
+    const pdfPath = await generateQuotationPDF(html, firebaseQuotationId);
 
     console.log("📄 PDF GENERATED →", pdfPath);
 
@@ -634,35 +638,30 @@ async function sendQuotationToClientFirebase(firebaseQuotationId, salesManagerId
       throw new Error("PDF not found at: " + pdfPath);
     }
 
-  } catch (pdfErr) {
-    console.error("❌ PDF FAILED:", pdfErr.message);
-    throw new Error("PDF Generation Failed: " + pdfErr.message);
-  }
 
-  // =============== 5. SEND EMAIL =================
-  try {
+    /* ------------------------------------------------
+       5️⃣ Send quotation email (HARDENED)
+    ------------------------------------------------- */
     console.log("📨 SENDING EMAIL...");
 
-    await sendQuotationEmail({
-      to: clientEmail,
-      subject: aiQuotation.subject,
-      text: "Please find attached your quotation.",
-      attachmentPath: pdfPath
-    });
+    try {
+      await sendQuotationEmail({
+        to: clientEmail,
+        subject: aiQuotation.subject,
+        text: "Please find attached your quotation.",
+        attachmentPath: pdfPath
+      });
 
-    console.log("✅ EMAIL SENT SUCCESS");
+      console.log("✅ EMAIL SENT SUCCESS");
 
-  } catch (mailErr) {
-    console.error("❌ EMAIL FAILED:", mailErr.message);
-    throw new Error("SMTP Failed: " + mailErr.message);
-  }
+    } catch (mailErr) {
+      console.error("❌ EMAIL FAILED:", mailErr.message);
+      throw new Error("SMTP Failed: " + mailErr.message);
+    }
 
-  // =============== 6. DB TRANSACTION ONLY FOR AUDIT =============
-  const conn = await db.getConnection();
-
-  try {
-    await conn.beginTransaction();
-
+    /* ------------------------------------------------
+       6️⃣ Audit log (optional)
+    ------------------------------------------------- */
     await conn.query(
       `
       INSERT INTO quotation_audit
@@ -675,39 +674,23 @@ async function sendQuotationToClientFirebase(firebaseQuotationId, salesManagerId
 
     await conn.commit();
 
-  } catch (dbErr) {
+    return {
+      firebaseQuotationId,
+      status: "SENT",
+      sentTo: clientEmail
+    };
+
+  } catch (error) {
     await conn.rollback();
-    console.error("❌ AUDIT LOG FAILED:", dbErr.message);
-    // not fatal
+
+    console.error("🔥 SEND FLOW ERROR:", error.message);
+
+    throw error;
+
   } finally {
     conn.release();
   }
-
-  // =============== 7. UPDATE FIREBASE STATUS =============
-  try {
-    await firestore
-      .collection("quotations")
-      .doc(firebaseQuotationId)
-      .update({
-        status: "sent",
-        sentAt: new Date()
-      });
-  } catch (fbErr) {
-    console.warn("⚠️ Firebase status not updated:", fbErr.message);
-  }
-
-  // =============== 8. CLEANUP =================
-  try {
-    fs.unlinkSync(pdfPath);
-  } catch {}
-
-  return {
-    firebaseQuotationId,
-    status: "SENT",
-    sentTo: clientEmail
-  };
 }
-
 
 module.exports = {
   sendQuotationToClientFirebase
