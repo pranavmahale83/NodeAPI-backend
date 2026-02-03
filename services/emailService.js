@@ -44,4 +44,4 @@ async function sendQuotationEmail({ to, subject, text, attachmentPath }) {
   });
 }
 
-module.exports = { sendQuotationEmail };
+module.exports = { sendQuotationEmail,transporter};
