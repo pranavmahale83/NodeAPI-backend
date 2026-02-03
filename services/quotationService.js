@@ -1,4 +1,6 @@
 const db = require("../config/db");
+const path = require("path");
+const fs = require("fs");
 const { calculatePricing } = require("./priceService");
 const { generateQuotationAI } = require("./aiquotationService");
 const { markdownToHtml } = require("../utils/markdownToHtml");
