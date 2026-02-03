@@ -659,23 +659,22 @@ async function sendQuotationToClientFirebase(firebaseQuotationId, salesManagerId
       throw new Error("SMTP Failed: " + mailErr.message);
     }
 
-    /* ------------------------------------------------
-       6️⃣ Audit log (optional)
-    ------------------------------------------------- */
-    await conn.query(
-      `
-      INSERT INTO quotation_audit
-        (firebase_quotation_id, action, performed_by)
-      VALUES
-        (?, 'SENT_TO_CLIENT', ?)
-      `,
-      [firebaseQuotationId, salesManagerId]
-    );
+    // /* ------------------------------------------------
+    //    6️⃣ Audit log (optional)
+    // ------------------------------------------------- */
+    // await conn.query(
+    //   `
+    //   INSERT INTO quotation_audit
+    //     (firebase_quotation_id, action, performed_by)
+    //   VALUES
+    //     (?, 'SENT_TO_CLIENT', ?)
+    //   `,
+    //   [firebaseQuotationId, salesManagerId]
+    // );
 
     await conn.commit();
 
     return {
-      firebaseQuotationId,
       status: "SENT",
       sentTo: clientEmail
     };

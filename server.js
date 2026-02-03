@@ -27,16 +27,36 @@ app.get("/check", (req, res) => {
 
 app.get("/test-mail", async (req, res) => {
   try {
-    await transporter.verify();
-    res.json({ status: "SMTP CONNECTED" });
-  } catch (err) {
+
+    const mailOptions = {
+      from: "ERP System <pranavmahale08@gmail.com>",   // Allowed in Brevo
+      to: process.env.EMAIL_USER,
+      subject: "Brevo Test Email",
+      text: "Your email service is working correctly via Brevo SMTP."
+    };
+
+    const response = await transporter.sendMail(mailOptions);
+
     res.json({
-      error: err.message,
-      code: err.code,
-      command: err.command
+      status: "BREVO CONNECTED",
+      response: {
+        messageId: response.messageId,
+        accepted: response.accepted,
+        rejected: response.rejected
+      }
     });
+
+  } catch (err) {
+
+    res.status(500).json({
+      error: err.message,
+      name: err.name
+    });
+
   }
 });
+
+
 
 
 
