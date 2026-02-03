@@ -46,60 +46,63 @@
 
 // module.exports = { sendQuotationEmail,transporter};
 
-const nodemailer = require("nodemailer");
+const axios = require("axios");
 const fs = require("fs");
-
-const transporter = nodemailer.createTransport({
-  host: "smtp-relay.brevo.com",
-  port: 465,
-  secure: true,          // IMPORTANT
-  auth: {
-    user: process.env.BREVO_USER,
-    pass: process.env.BREVO_PASS
-  },
-  tls: {
-    rejectUnauthorized: false
-  },
-  connectionTimeout: 20000,
-  greetingTimeout: 15000,
-  socketTimeout: 20000
-});
-
 
 async function sendQuotationEmail({ to, subject, text, attachmentPath }) {
 
-  console.log("📧 BREVO → sending to:", to);
+  console.log("📧 BREVO API → sending to:", to);
   console.log("📎 Attachment exists:", fs.existsSync(attachmentPath));
 
-  const fileBuffer = fs.readFileSync(attachmentPath);
+  const fileContent = fs.readFileSync(attachmentPath, { encoding: "base64" });
 
-  const mailOptions = {
-    from: "ERP System <pranavmahale08@gmail.com>",   // can be gmail in Brevo
-    to,
-    subject,
-    text,
-    attachments: [
+  const payload = {
+    sender: {
+      name: "ERP System",
+      email: "pranavmahale08@gmail.com"
+    },
+
+    to: [
       {
-        filename: "Quotation.pdf",
-        content: fileBuffer
+        email: to
+      }
+    ],
+
+    subject: subject,
+
+    textContent: text,
+
+    attachment: [
+      {
+        name: "Quotation.pdf",
+        content: fileContent
       }
     ]
   };
 
   try {
-    const response = await transporter.sendMail(mailOptions);
+    const response = await axios.post(
+      "https://api.brevo.com/v3/smtp/email",
+      payload,
+      {
+        headers: {
+          "api-key": process.env.BREVO_API_KEY,
+          "Content-Type": "application/json"
+        }
+      }
+    );
 
-    console.log("✅ BREVO RESPONSE:", response.messageId);
+    console.log("✅ BREVO API RESPONSE:", response.data);
 
     return {
       success: true,
-      messageId: response.messageId
+      id: response.data.messageId
     };
 
   } catch (err) {
-    console.log("❌ BREVO ERROR:", err.message);
-    throw err;
+    console.log("❌ BREVO API ERROR:", err.response?.data || err.message);
+    throw new Error("Brevo API Failed");
   }
 }
 
-module.exports = { sendQuotationEmail,transporter };
+module.exports = { sendQuotationEmail };

@@ -5,6 +5,7 @@ const cors = require("cors");
 const db = require("./config/db");
 const quotationRoutes = require("./routes/quotationRoutes");
 const { transporter } = require("./services/emailService");
+const axios = require("axios");
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -28,33 +29,37 @@ app.get("/check", (req, res) => {
 app.get("/test-mail", async (req, res) => {
   try {
 
-    const mailOptions = {
-      from: "ERP System <pranavmahale08@gmail.com>",   // Allowed in Brevo
-      to: process.env.EMAIL_USER,
-      subject: "Brevo Test Email",
-      text: "Your email service is working correctly via Brevo SMTP."
-    };
-
-    const response = await transporter.sendMail(mailOptions);
+    const response = await axios.post(
+      "https://api.brevo.com/v3/smtp/email",
+      {
+        sender: {
+          name: "ERP System",
+          email: "pranavmahale08@gmail.com"
+        },
+        to: [{ email: process.env.EMAIL_USER }],
+        subject: "Brevo API Test",
+        textContent: "Your email service is working via BREVO API"
+      },
+      {
+        headers: {
+          "api-key": process.env.BREVO_API_KEY,
+          "Content-Type": "application/json"
+        }
+      }
+    );
 
     res.json({
       status: "BREVO CONNECTED",
-      response: {
-        messageId: response.messageId,
-        accepted: response.accepted,
-        rejected: response.rejected
-      }
+      response: response.data
     });
 
   } catch (err) {
-
     res.status(500).json({
-      error: err.message,
-      name: err.name
+      error: err.response?.data || err.message
     });
-
   }
 });
+
 
 
 
