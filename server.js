@@ -24,6 +24,19 @@ app.get("/check", (req, res) => {
   });
 });
 
+app.get("/test-mail", async (req, res) => {
+  try {
+    await transporter.verify();
+    res.json({ status: "SMTP CONNECTED" });
+  } catch (err) {
+    res.json({
+      error: err.message,
+      code: err.code,
+      command: err.command
+    });
+  }
+});
+
 
 
 /* ------------------ Server Start ------------------ */

@@ -3,22 +3,31 @@ const nodemailer = require("nodemailer");
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
-  secure: false,               // 🔥 MUST be false for 587
+  secure: false,
+
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,   // 🔐 App Password, NOT Gmail password
+    pass: process.env.EMAIL_PASS,
   },
+
+  logger: true,      // 🔥 ADD THIS
+  debug: true,       // 🔥 ADD THIS
+
   tls: {
     rejectUnauthorized: false
   },
-  connectionTimeout: 20000,    // avoid Render timeout
-  greetingTimeout: 20000,
-  socketTimeout: 20000
+
+  connectionTimeout: 30000,
+  greetingTimeout: 30000,
+  socketTimeout: 30000
 });
 
 async function sendQuotationEmail({ to, subject, text, attachmentPath }) {
 
-  // 🔍 Verify connection before sending (helpful on Render)
+  console.log("📧 SMTP USER →", process.env.EMAIL_USER);
+  console.log("📎 ATTACHMENT EXISTS →", require("fs").existsSync(attachmentPath));
+
+  // TEST CONNECTION FIRST
   await transporter.verify();
 
   return transporter.sendMail({
