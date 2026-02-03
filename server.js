@@ -4,6 +4,7 @@ const express = require("express");
 const cors = require("cors");
 const db = require("./config/db");
 const quotationRoutes = require("./routes/quotationRoutes");
+const { transporter } = require("./services/emailService");
 
 const app = express();
 const PORT = process.env.PORT || 5001;
